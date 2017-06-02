@@ -9,8 +9,10 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -21,8 +23,6 @@ import android.widget.ListView;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<HashMap<String, String>> arraylist = new ArrayList<HashMap<String,String>>();
     SimpleAdapter adapter;
     ListView lv;
-    private static final int REQUEST_ACCESS_LOCATION = 101;
+    private static final int MY_REQUEST_ACCESS_LOCATION = 101;
 
     private static final Map<String, String> wifichannel = new HashMap<String, String>();
     static{
@@ -83,6 +83,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             dialog.show();
+        }else{
+            wifi.startScan();
         }
 
         this.adapter = new SimpleAdapter(MainActivity.this, arraylist, R.layout.list, new String[] {"ssid","power","freq"}, new int[] {R.id.ssid, R.id.power, R.id.freq});
@@ -137,16 +139,21 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    /**
-     * Callback received when a permissions request has been completed.
-     */
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        if (requestCode == REQUEST_ACCESS_LOCATION) {
-            if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                populateAutoComplete();
-            }
+    private class wifiscan extends AsyncTask<String,String,String> {
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+        }
+
+        @Override
+        protected String doInBackground(String... strings) {
+            wifi.startScan();
+            return "do";
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+
         }
     }
 
@@ -163,35 +170,74 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         //Log.d(TAG, "newer than M");
+        /*
+        使用checkSelfPermission來檢查是否擁有這個權限
+        會得到PackageManager.PERMISSION_GRANTED跟PackageManager.PERMISSION_DENIED兩種結果。
+        如果是PackageManager.PERMISSION_GRANTED,
+        代表你已經獲得使用者同意APP可以使用該權限
+        */
         if (this.checkSelfPermission(ACCESS_COARSE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             return true;
         }
         //Log.d(TAG, "no permission");
 
+        /*
+        使用shouldShowRequestPermissionRationale方法來跟使用者解釋更多需要使用這些權限的理由,
+        當使用者第一次看到授權畫面, 這個方法會先回傳false,
+        當使用者按下了拒絕, 而第二次再進入app的時候,
+        shouldShowRequestPermissionRationale就會回傳true,
+        讓你透過客製化的畫面來跟使用者強調拿到這個權限並沒有要做甚麼壞事:P
+         */
         if (this.shouldShowRequestPermissionRationale(ACCESS_COARSE_LOCATION)) {
             //Log.d(TAG, "request permission");
-            /*
-            Snackbar.make(mFab.get(),
-                    R.string.permission_rationale, Snackbar.LENGTH_INDEFINITE)
-                    .setAction(android.R.string.ok, new View.OnClickListener() {
+            new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("溫馨提醒")
+                    .setMessage("我真的沒有要做壞事, 給我權限吧?")
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
                         @Override
-                        @TargetApi(Build.VERSION_CODES.M)
-                        public void onClick(View v) {
-                            mMainActivity.get().
-                                    requestPermissions(new String[]{
-                                                    ACCESS_COARSE_LOCATION},
-                                            REQUEST_ACCESS_LOCATION);
+                        public void onClick(DialogInterface dialog, int which) {
+                            ActivityCompat.requestPermissions(MainActivity.this,
+                                    new String[]{ACCESS_COARSE_LOCATION},
+                                    MY_REQUEST_ACCESS_LOCATION);
                         }
-                    });
-                    */
+                    })
+                    .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            finish();
+                        }
+                    })
+                    .show();
         } else {
             //Log.d(TAG, "Permission OK");
-            this.requestPermissions(new String[]{
-                                    ACCESS_COARSE_LOCATION},
-                            REQUEST_ACCESS_LOCATION);
+            /*
+            透過requestPermissions來跟使用者要求權限
+            MY_REQUEST_ACCESS_LOCATION是你自定義常數
+             */
+            this.requestPermissions(new String[]{ACCESS_COARSE_LOCATION},
+                    MY_REQUEST_ACCESS_LOCATION);
         }
         return false;
+    }
+
+    /*
+    當使用者按下requestPermissions視窗的拒絕或同意,
+    就會回傳至onRequestPermissionsResult方法,
+    第二個參數是你所要求的權限,可以同時要求多個權限,
+    只需透過requestCode 你自訂的參數, 以及permissions跟grantResults的順序,
+    就可以知道使用者同意了那些權限,
+    grantResults回來的結果如果0, 代表使用者同意權限,
+    如果回來的是-1, 代表被拒絕惹。
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == MY_REQUEST_ACCESS_LOCATION) {
+            if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                populateAutoComplete();
+            }
+        }
     }
 
 }
