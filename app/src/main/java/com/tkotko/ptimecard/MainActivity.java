@@ -1,6 +1,7 @@
 package com.tkotko.ptimecard;
 
 import android.annotation.TargetApi;
+import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -43,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
     SimpleAdapter adapter;
     ListView lv;
     private static final int MY_REQUEST_ACCESS_LOCATION = 101;
+    BroadcastReceiver mBroadcastRec;
+    ProgressDialog pd;
 
     private static final Map<String, String> wifichannel = new HashMap<String, String>();
     static{
@@ -90,20 +93,13 @@ public class MainActivity extends AppCompatActivity {
         this.adapter = new SimpleAdapter(MainActivity.this, arraylist, R.layout.list, new String[] {"ssid","power","freq"}, new int[] {R.id.ssid, R.id.power, R.id.freq});
         lv.setAdapter(adapter);
 
-        registerReceiver(new BroadcastReceiver() {
+        mBroadcastRec = new BroadcastReceiver(){
+        //registerReceiver(new BroadcastReceiver() {
 
             @Override
             public void onReceive(Context context, Intent intent) {
                 results = wifi.getScanResults();
                 size = results.size();
-            }
-        }, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
-
-        buttonScan.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                arraylist.clear();
-                wifi.startScan();
 
                 Toast.makeText(MainActivity.this, "Scanning..."+size, Toast.LENGTH_LONG).show();
                 try {
@@ -134,26 +130,58 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     // TODO: handle exception
                 }
+                pd.dismiss();
+            }
+        //}, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+        };
+
+
+        buttonScan.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                arraylist.clear();
+                /*
+                方法1:透過AsyncTask執行startScan
+                沒意義,因為scan時並不會停在doInBackground
+                且最後由BroadcastReceiver接收結果,
+                而不在onPostExecute,
+                無法呈現ProgressDialog的效果
+                new wifiscan().execute();
+                */
+
+                //方法2:直接執行startScan
+                pd = new ProgressDialog(MainActivity.this);
+                pd.setMessage("wifi scan...");
+                pd.setIndeterminate(true);
+                pd.show();
+                registerReceiver(mBroadcastRec, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+                wifi.startScan();
             }
         });
 
     }
 
-    private class wifiscan extends AsyncTask<String,String,String> {
+    private class wifiscan extends AsyncTask<Void, String, Void> {
+        //ProgressDialog pd = new ProgressDialog(MainActivity.this);
+
         @Override
         protected void onPreExecute() {
-            super.onPreExecute();
+            pd = new ProgressDialog(MainActivity.this);
+            pd.setMessage("wifi scan...");
+            pd.setIndeterminate(true);
+            pd.show();
         }
 
         @Override
-        protected String doInBackground(String... strings) {
+        protected void onPostExecute(Void result) {
+            //pd.dismiss();
+        }
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            registerReceiver(mBroadcastRec, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
             wifi.startScan();
-            return "do";
-        }
-
-        @Override
-        protected void onPostExecute(String s) {
-
+            return null;
         }
     }
 
